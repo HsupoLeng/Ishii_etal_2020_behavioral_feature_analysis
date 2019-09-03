@@ -1,24 +1,30 @@
-function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name, common_path, feat_name, num_frames, check_attacked_fly, genotypes, hist_stat)
+function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name, common_path, feat_name, num_frames, check_attacked_fly, genotypes, selected_genotype, hist_stat)
     load(fullfile(common_path, flymat_name));
     featAll = struct('movie', '', 'fly', nan);
 
-    if ~isempty(genotypes) % To look at specific genotypes, use, for example, [10,11]; otherwise, [].
+    if ~isempty(genotypes) % To look at pairing of specific genotypes, use, for example, [10,11] or [90, 1]; otherwise, [].
         all_genotypes = [flymatAll(:).genotype];
         flymatAll_mask_cell = arrayfun(@(type) all_genotypes == type, genotypes, 'UniformOutput', false);
         flymatAll_mask = any(vertcat(flymatAll_mask_cell{:}));
         flymatAll = flymatAll(flymatAll_mask);
     end
     
+    featAll_sz = 0;
     for i = 1:length(flymatAll)
+        % Allow mixed pairing. Use selected_genotype to indicate the
+        % genotype that you want to examine in a pair
+        if isempty(selected_genotype)
+            selected_genotype = genotypes;
+        end
+        if ~ismember(flymatAll(i).genotype, selected_genotype) 
+            continue; 
+        end
         
         movie = flymatAll(i).movie{1};
         fly_feature = flymatAll(i).fly; % Take feature value from fly_feature
+        another_fly_in_pair = fly_feature + (-1)^(mod(fly_feature, 2)+1);
         if check_attacked_fly % If we are interested in the feature of the attacked fly
-            if mod(fly_feature, 2)
-                fly_time = fly_feature + 1; % Take lunge times from fly_time
-            else
-                fly_time = fly_feature - 1; 
-            end
+            fly_time = another_fly_in_pair; 
         else
             fly_time = fly_feature; 
         end
@@ -26,11 +32,29 @@ function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name
         fly_time_idx = find(bitand(strcmp([flymatAll(:).movie], movie), [flymatAll(:).fly] == fly_time)); 
         LungeStarts = flymatAll(fly_time_idx).L_startsm;
         LungeEnds = flymatAll(fly_time_idx).L_endsm;
+        
+        entering_frame_30_min = min(flymatAll([fly_feature, another_fly_in_pair]).EnteringFrame);
+        ending_frame_30_min = entering_frame_30_min + flymatAll(fly_feature).ThirtyMinFrame; 
+        lunge_starts_mask = bitand(LungeStarts >= entering_frame_30_min, LungeStarts < ending_frame_30_min);
+        lunge_ends_mask = bitand(LungeEnds >= entering_frame_30_min, LungeEnds < ending_frame_30_min);
+        lunge_joint_mask = bitand(lunge_starts_mask, lunge_ends_mask);
+        LungeStarts = LungeStarts(lunge_joint_mask);
+        LungeEnds = LungeEnds(lunge_joint_mask);
 
         file_path = fullfile(common_path, movie(1:6), movie, movie);
         feat_mat_name = fullfile(file_path, strcat(movie, '-feat.mat'));
 
-        load(feat_mat_name);
+        try
+            load(feat_mat_name);
+        catch ME
+            movie_parts = strsplit(movie, {'-', '_'});
+            cwd_contents = dir(common_path);
+            cwd_subfolders = {cwd_contents([cwd_contents(:).isdir]).name};
+            target_subfolder = cwd_subfolders(contains(cwd_subfolders, movie_parts{1}));
+            file_path = fullfile(common_path, target_subfolder{1}, movie, movie);
+            feat_mat_name = fullfile(file_path, strcat(movie, '-feat.mat'));
+            load(feat_mat_name);
+        end
         total_num_frame = size(feat.data, 2);
         if num_frames > 0
             LungeStarts(abs(LungeEnds - total_num_frame) < num_frames) = [];
@@ -39,17 +63,37 @@ function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name
             LungeEnds(LungeStarts < abs(num_frames)) = [];
             LungeStarts(LungeStarts < abs(num_frames)) = [];
         end
-        featAll(i).lunge_starts = LungeStarts';
-        featAll(i).lunge_ends = LungeEnds';
         
-        mask_cell = cellfun(@(s) strcmp(feat.names, s), feat_name, 'UniformOutput', false);
-
-        featAll(i).movie = movie; 
-        featAll(i).fly = fly_feature;
-        featAll(i).genotype = flymatAll(fly_feature).genotype; 
+        featAll_sz = featAll_sz + 1;
+        featAll(featAll_sz).lunge_starts = LungeStarts';
+        featAll(featAll_sz).lunge_ends = LungeEnds';
+        
+        mask_cell = cell(length(feat_name), 1);
+        for j=1:length(feat_name)
+            feature_str_components = strsplit(feat_name{j}, '_');
+            feature_str_core = feature_str_components{1};
+            mask_cell{j} = ~cellfun(@isempty, regexp(feat.names, strcat('^', feature_str_core)));
+            cnt = 1;
+            while sum(mask_cell{j}) > 1
+                feature_str_core = strjoin({feature_str_core, feature_str_components{cnt + 1}}, '_');
+                mask_cell{j} = ~cellfun(@isempty, regexp(feat.names, strcat('^', feature_str_core)));
+                cnt = cnt + 1;
+            end
+        end
+        
+        featAll(featAll_sz).movie = movie; 
+        featAll(featAll_sz).fly = fly_feature;
+        featAll(featAll_sz).genotype = flymatAll(fly_feature).genotype; 
         feat_vals = zeros(length(LungeStarts), abs(num_frames));
 
         for j=1:length(feat_name)
+            if strcmp(feat_name{j}, 'facing_angle_mutual_other')
+                if mod(fly_time, 2)
+                    fly_feature = fly_time + 1; % Take lunge times from fly_time
+                else
+                    fly_feature = fly_time - 1; 
+                end
+            end
             for k=1:length(LungeStarts)
                 if num_frames > 0 
                     feat_vals(k, :) = feat.data(fly_feature, LungeEnds(k)+1:LungeEnds(k)+num_frames, mask_cell{j});
@@ -57,11 +101,11 @@ function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name
                     feat_vals(k, :) = feat.data(fly_feature, LungeStarts(k)+num_frames:LungeStarts(k)-1, mask_cell{j});
                 end
             end
-            featAll(i).(feat_name{j}) = feat_vals;
+            featAll(featAll_sz).(feat_name{j}) = feat_vals;
         end
 
         feat_temp_cell = cellfun(@(name) featAll(1).(name), feat_name, 'UniformOutput', false);
-        featAll(i).table = table(feat_temp_cell{:}, 'VariableNames', feat_name);
+        featAll(featAll_sz).table = table(feat_temp_cell{:}, 'VariableNames', feat_name);
     end
     
     for i=1:length(featAll)
@@ -99,6 +143,9 @@ function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name
     % Remove outlier sequences using quartile method
     num_of_outliers = 0;
     for j=1:length(feat_name)
+        if contains(feat_name{j}, {'angle', 'mutual'})
+            continue;
+        end
         curr_feature_all_means = vertcat(featAll(:).(strcat(feat_name{j}, '_mean'))); 
         quartiles = quantile(curr_feature_all_means, [0.25, 0.75]);
         iqr_of_means = quartiles(2) - quartiles(1); 
@@ -128,7 +175,7 @@ function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name
     else
         fly_str = 'attacking';
     end
-    save(fullfile(sprintf('FeatAll_%s_period_%d_%s_fly-remove_outliers.mat', flymat_name, num_frames, fly_str)), 'featAll');
+    save(fullfile(sprintf('FeatAll_%s_period_%d_%s_fly_genotype_%s-remove_outliers.mat', flymat_name, num_frames, fly_str, strjoin(cellstr(num2str(selected_genotype')), '_'))), 'featAll');
     
 %     figure();
 %     hold on;

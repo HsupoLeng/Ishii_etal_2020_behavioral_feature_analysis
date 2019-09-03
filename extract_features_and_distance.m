@@ -1,9 +1,9 @@
 % All the options on features, statistics, time period that we use to
 % collect the data
-feature_options = {'dist_to_other', 'facing_angle', 'angle_between', 'vel'};
+feature_options = {'dist_to_other', 'facing_angle', 'angle_between', 'vel', 'facing_angle_mutual_self', 'facing_angle_mutual_other'};
 stat_options = {'mean', 'init', 'end', 'delta', 'var'};
 period_options = [-60, -30, -10, -5, -3, -1, 10, 20, 30, 60];
-is_attacked_fly = [true, false];
+is_attacked_fly = false;
 fps = 60;
 
 % Collect original features, feature statistics and compute the distance
@@ -13,13 +13,47 @@ feat_probs_dist_hellinger = zeros(length(feature_options), length(stat_options),
 feat_probs_dist_ks = zeros(length(feature_options), length(stat_options), length(period_options), length(is_attacked_fly));
 featAll_cell = cell(length(feature_options), length(stat_options), length(period_options), length(is_attacked_fly), 2);
 period_mask_all_cell = cell(length(period_options), length(is_attacked_fly), 2);
+
+flymat_info_struct = struct();
+% Same genotype pairing
+flymat_info_struct(1).exp_folder = {'Z:\Kenichi\CSMH_SM_HeisenbergChamber_Apr-May2019', 'Z:\Kenichi\CG3385_KO_CS-bc-11_HeisenbergChamber_Apr-May2019'};
+flymat_info_struct(1).flymat = {'FLYMAT_CSMH_SM_HeisenbergChamber_Apr-May2019', 'FLYMAT_CG3385_KO_CS-bc-11_HeisenbergChamber_Apr2019'};
+flymat_info_struct(1).genotypes = {[90, 91], [10, 11]};
+flymat_info_struct(1).selected_genotype = {[], []};
+flymat_info_struct(1).genotype_str = {'WT_SM', 'CG3385_KO_CS-bc-11_GM'};
+
+% SH WT vs. mutant
+flymat_info_struct(2).exp_folder = {'Z:\Kenichi\CG3385_KO_CS-bc-11_GM_vsWT_SM_HeisenbergChamber_May2019'};
+flymat_info_struct(2).flymat = {'FLYMAT_CG3385_KO_CS-bc-11_GM_vsWT_SM_HeisenbergChamber_May2019'};
+flymat_info_struct(2).genotypes = {[90, 92, 10, 12]};
+flymat_info_struct(2).selected_genotype = {[90, 92], [10, 12]};
+flymat_info_struct(2).genotype_str = {'WT_SM', 'CG3385_KO_CS-bc-11_GM'};
+
+% GH WT vs. SH WT
+flymat_info_struct(3).exp_folder = {'Z:\Kenichi\CSMH_SM_vsWT_GM_HeisenbergChamber_May2019'};
+flymat_info_struct(3).flymat = {'FLYMAT_CSMH_SM_vsWT_GM_HeisenbergChamber_May2019'};
+flymat_info_struct(3).genotypes = {[90, 91]};
+flymat_info_struct(3).selected_genotype = {[90], [91]};
+flymat_info_struct(3).genotype_str = {'WT_GM', 'WT_SM'};
+
+% GH WT vs. mutant
+flymat_info_struct(4).exp_folder = {'Z:\Kenichi\CG3385_KO_CS-bc-11_GM_vsWT_GM_HeisenbergChamber_May2019'};
+flymat_info_struct(4).flymat = {'FLYMAT_CG3385_KO_CS-bc-11_GM_vsWT_GM_HeisenbergChamber_May2019'};
+flymat_info_struct(4).genotypes = {[1, 90]};
+flymat_info_struct(4).selected_genotype = {[90], [1]};
+flymat_info_struct(4).genotype_str = {'WT_GM', 'CG3385_KO_CS-bc-11_GM'};
+
+flymat_sel = 1;
 for k=1:length(period_options)
     for l=1:length(is_attacked_fly)
         fprintf('Now at set-up %d/%d\n', (k-1)*length(is_attacked_fly)+l, length(period_options)*length(is_attacked_fly));
-                
-        [feat_probs_wt_cell, feat_prob_edges_wt_cell, featAll_wt] = FeaturesAfterLunge('FLYMAT_CSMH_SM_HeisenbergChamber_Apr-May2019', 'Z:\Kenichi\CSMH_SM_HeisenbergChamber_Apr-May2019', feature_options, period_options(k), is_attacked_fly(l), [90, 91], stat_options);
-        [feat_probs_mu_cell, feat_prob_edges_mu_cell, featAll_mu] = FeaturesAfterLunge('FLYMAT_CG3385_KO_CS-bc-11_HeisenbergChamber_Apr2019', 'Z:\Kenichi\CG3385_KO_CS-bc-11_HeisenbergChamber_Apr-May2019', feature_options, period_options(k), is_attacked_fly(l), [10, 11], stat_options);
-
+          
+        [feat_probs_wt_cell, feat_prob_edges_wt_cell, featAll_wt] = FeaturesAfterLunge(flymat_info_struct(flymat_sel).flymat{1}, flymat_info_struct(flymat_sel).exp_folder{1}, feature_options, period_options(k), is_attacked_fly(l), flymat_info_struct(flymat_sel).genotypes{1}, flymat_info_struct(flymat_sel).selected_genotype{1}, stat_options);
+        if length(flymat_info_struct(flymat_sel).flymat) == 1
+            [feat_probs_mu_cell, feat_prob_edges_mu_cell, featAll_mu] = FeaturesAfterLunge(flymat_info_struct(flymat_sel).flymat{1}, flymat_info_struct(flymat_sel).exp_folder{1}, feature_options, period_options(k), is_attacked_fly(l), flymat_info_struct(flymat_sel).genotypes{1}, flymat_info_struct(flymat_sel).selected_genotype{2}, stat_options);
+        else
+            [feat_probs_mu_cell, feat_prob_edges_mu_cell, featAll_mu] = FeaturesAfterLunge(flymat_info_struct(flymat_sel).flymat{2}, flymat_info_struct(flymat_sel).exp_folder{2}, feature_options, period_options(k), is_attacked_fly(l), flymat_info_struct(flymat_sel).genotypes{2}, flymat_info_struct(flymat_sel).selected_genotype{2}, stat_options);
+        end
         % Store the features
         for i=1:length(feature_options)
             for j=1:length(stat_options)
@@ -95,5 +129,6 @@ for k=1:length(period_options)
     end
 end
 
+genotype_str = flymat_info_struct(flymat_sel).genotype_str; 
 % save the result
-save('featAll_and_feat_probs_dist_remove_outliers.mat', 'feature_options', 'stat_options', 'period_options', 'is_attacked_fly', 'featAll_cell', 'feat_probs_all_cell', 'feat_probs_dist_hellinger', 'feat_probs_dist_ks', 'period_mask_all_cell');
+save(strcat('featAll_and_feat_probs_dist_remove_outliers-', strjoin(flymat_info_struct(flymat_sel).flymat, '_'), '.mat'), 'feature_options', 'stat_options', 'period_options', 'is_attacked_fly', 'featAll_cell', 'feat_probs_all_cell', 'feat_probs_dist_hellinger', 'feat_probs_dist_ks', 'period_mask_all_cell', 'genotype_str');
