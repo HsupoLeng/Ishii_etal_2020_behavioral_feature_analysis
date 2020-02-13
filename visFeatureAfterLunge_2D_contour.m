@@ -1,13 +1,17 @@
 close all; 
+clear;
 load('featAll_and_feat_probs_dist_remove_outliers.mat', ...
     'feature_options', 'stat_options', 'period_options', 'is_attacked_fly', 'featAll_cell', 'period_mask_all_cell');
 
 % Visualize wildtype and mutant feature statistic distributions using heat
 % map based on kernel density estimate from the statistic data points
 % Compare by visual examination
-period_options = fliplr(period_options);
-plot_periods = [10, 30, 60];
 
+plot_periods = [-10, -30, -60];
+if all(plot_periods > 0)
+    period_options = fliplr(period_options);
+    plot_periods = flipud(plot_periods);
+end
 chosen_is_attacked_fly = true; 
 setup_idx_tuples = [repelem((1:length(feature_options))', length(stat_options)), ...
     repmat((1:length(stat_options))', length(feature_options), 1)];
@@ -34,6 +38,12 @@ end
 
 for l=1:length(period_options)
     chosen_period = period_options(l);
+    if all(plot_periods > 0)
+            l_alt = length(period_options) - l + 1;
+        else
+            l_alt = l;
+    end
+
     if ~ismember(chosen_period, plot_periods)
         continue;
     end
@@ -50,7 +60,7 @@ for l=1:length(period_options)
             feat_pair_mat = [];
             for k=1:length(setup_comb)
                 setup_tuple = setup_idx_tuples(setup_comb(k), :);
-                feat_pair_mat(:, k) = featAll_cell{setup_tuple(1), setup_tuple(2), length(period_options) - l + 1, chosen_is_attacked_fly_idx, j};    
+                feat_pair_mat(:, k) = featAll_cell{setup_tuple(1), setup_tuple(2), l_alt, chosen_is_attacked_fly_idx, j};    
             end
 %             if remove_short_ili_seq
 %                 feat_pair_mat = feat_pair_mat(period_mask_all_cell{l, chosen_is_attacked_fly_idx, j}, :);
@@ -106,11 +116,19 @@ for i=1:size(setup_combs, 1) % Iterate over different combinations of statistic
     if any(ismember(setup_comb, [5:5:20, 4:5:19]))
         continue; 
     end
+    if any(~ismember(setup_comb, [1:5, 16:20]))
+        continue; 
+    end
     
     ax_objs = cell(2, 1);
     plot_period_accum = 0;
     for l=1:length(period_options)
         chosen_period = period_options(l);
+        if all(plot_periods > 0)
+            l_alt = length(period_options) - l + 1;
+        else
+            l_alt = l;
+        end
         if ~ismember(chosen_period, plot_periods)
             continue;
         else
@@ -122,7 +140,7 @@ for i=1:size(setup_combs, 1) % Iterate over different combinations of statistic
             feat_pair_mat = [];
             for k=1:length(setup_comb)
                 setup_tuple = setup_idx_tuples(setup_comb(k), :);
-                feat_pair_mat(:, k) = featAll_cell{setup_tuple(1), setup_tuple(2), length(period_options) - l + 1, chosen_is_attacked_fly_idx, j};    
+                feat_pair_mat(:, k) = featAll_cell{setup_tuple(1), setup_tuple(2), l_alt, chosen_is_attacked_fly_idx, j};    
             end
             feat_pair_mat_cell{j} = feat_pair_mat;
         end
@@ -217,7 +235,7 @@ for i=1:size(setup_combs, 1) % Iterate over different combinations of statistic
         lgd_obj = legend(ax_objs{j}); 
         temp_p_objs = lgd_obj.PlotChildren; 
         legend('off');
-        legend(ax_objs{j}, flipud(temp_p_objs), cellstr(num2str(flipud(plot_periods)')));
+        legend(ax_objs{j}, flipud(temp_p_objs), cellstr(num2str(plot_periods')));
     end
     saveas(double(fig_obj), sprintf('contour-wt_vs_mutant-%s_vs_%s-%s_fly.png', ...
             get(get(gca, 'ylabel'), 'String'), get(get(gca, 'xlabel'), 'String'), fly_str));
