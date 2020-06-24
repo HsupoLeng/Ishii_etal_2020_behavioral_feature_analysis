@@ -1,14 +1,14 @@
+% Extract peri-lunge feature data
+
 % All the options on features, statistics, time period that we use to
 % collect the data
 feature_options = {'dist_to_other', 'facing_angle', 'angle_between', 'vel', 'facing_angle_in_lunge_interval', 'facing_angle_mutual_self', 'facing_angle_mutual_other', 'vel_mutual_self', 'vel_mutual_other'};
 stat_options = {'mean', 'init', 'end', 'delta', 'var', 'max', 'timepoint'};
-% period_options = {[-30, -1], [-1, -1], [1, 30]};
 period_options = {[1, 30]};
-% period_options(period_options == 0) = [];
 is_attacked_fly = false;
 fps = 60;
-remove_short_interval = false; 
-remove_outliers = false;  
+remove_short_interval = true; 
+remove_outliers = true;  
 
 % Collect original features, feature statistics and compute the distance
 % between wildtype and mutant feature statistic distributions
@@ -66,6 +66,7 @@ for m=1:length(flymat_info_struct)
         for l=1:length(is_attacked_fly)
             fprintf('Now at set-up %d/%d\n', (k-1)*length(is_attacked_fly)+l, length(period_options)*length(is_attacked_fly));
 
+            % Compile the features
             [feat_probs_wt_cell, feat_prob_edges_wt_cell, featAll_wt] = FeaturesAfterLunge(flymat_info_struct(m).flymat{1}, flymat_info_struct(m).exp_folder{1}, 0, feature_options, period_options{k}, is_attacked_fly(l), remove_short_interval, remove_outliers, flymat_info_struct(m).genotypes{1}, flymat_info_struct(m).selected_genotype{1}, stat_options);
             if length(flymat_info_struct(m).flymat) == 1
                 [feat_probs_mu_cell, feat_prob_edges_mu_cell, featAll_mu] = FeaturesAfterLunge(flymat_info_struct(m).flymat{1}, flymat_info_struct(m).exp_folder{1}, 0, feature_options, period_options{k}, is_attacked_fly(l), remove_short_interval, remove_outliers, flymat_info_struct(m).genotypes{1}, flymat_info_struct(m).selected_genotype{2}, stat_options);
@@ -93,10 +94,6 @@ for m=1:length(flymat_info_struct)
             lunge_start_all_cell{k, l, 2} = cell2struct(lunge_start_all_info_mu, {'movie', 'fly', 'lunge_starts'}, 2);
             
             num_of_flies = [length(featAll_wt), length(featAll_mu)];
-    %         % Generate period_mask
-    %         period_mask_all_cell{k, l, 1} = logical(vertcat(featAll_wt(:).period_mask));
-    %         period_mask_all_cell{k, l, 2} = logical(vertcat(featAll_mu(:).period_mask));
-
             % Compute statistical distance between wildtype and mutant feature distributions
             for i=1:length(feature_options)
                 for j=1:length(stat_options)
@@ -126,8 +123,6 @@ for m=1:length(flymat_info_struct)
 
             feat_probs_all_cell(:, :, k, l, 1) = feat_probs_wt_cell;
             feat_probs_all_cell(:, :, k, l, 2) = feat_probs_mu_cell; 
-%             feat_probs_dist_hellinger(:, :, k, l) = cellfun(@(feat_probs_wt, feat_probs_mu) sqrt(1 - (sum(sqrt(feat_probs_wt.*feat_probs_mu)))), feat_probs_wt_cell, feat_probs_mu_cell); % Compute Hellinger distance
-%             feat_probs_dist_ks(:, :, k, l) = cellfun(@(feat_probs_wt, feat_probs_mu) max(abs(feat_probs_wt - feat_probs_mu)), feat_probs_wt_cell, feat_probs_mu_cell); % Compute Kolmogorov-Smirnov distance
 
             lunge_interval_all_cell{k, l, 1} = vertcat(featAll_wt(:).inter_lunge_interval);
             lunge_interval_all_cell{k, l, 2} = vertcat(featAll_mu(:).inter_lunge_interval);
@@ -135,7 +130,7 @@ for m=1:length(flymat_info_struct)
             % Plot histogram for inter-lunge interval
             % The histogram can be different for different periods due to
             % different outliers removed. Currently we draw figures based on data
-            % of the attacked flym with outliers removed using 10-frame
+            % of the attacked fly with outliers removed using 10-frame
             % sequences
             if k == 1 && l == 1
                 ili_wt = vertcat(featAll_wt(:).inter_lunge_interval)./fps; 
@@ -190,8 +185,13 @@ for m=1:length(flymat_info_struct)
     else
         same_genotype_str = 'diff_genotype';
     end
+    if remove_outliers
+        outliers_str = 'remove';
+    else
+        outliers_str = 'keep';
+    end
     % save the result
-    save(strcat('featAll_and_feat_probs_dist_remove_outliers-', same_genotype_str, '-', strjoin(flymat_info_struct(m).flymat, '_'), '.mat'), ...
+    save(strcat('featAll_and_feat_probs_dist_', outliers_str, '_outliers-', same_genotype_str, '-', strjoin(flymat_info_struct(m).flymat, '_'), '.mat'), ...
         'feature_options', 'stat_options', 'period_options', 'is_attacked_fly', ...
         'featAll_cell', 'feat_probs_all_cell', 'feat_probs_dist_hellinger', ...
         'feat_probs_dist_ks', 'period_mask_all_cell', 'genotype_str', ...

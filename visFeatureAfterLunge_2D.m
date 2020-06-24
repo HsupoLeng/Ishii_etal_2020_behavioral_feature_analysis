@@ -1,47 +1,48 @@
+% Visualize pair of features around a lunge as a heat-map, pooling across
+% multiple lunges by either the attacking fly or the attacked fly in the
+% same pairing
+
 close all; 
 load('flymat_info_struct.mat', 'flymat_info_struct');
-plot_periods = [-30, -1, 30];
+plot_periods = [30];
+remove_outliers = false; 
 
 feat_pair_mat_cell_all = cell(length(flymat_info_struct), length(plot_periods), 3, 2);
 skip_plot = true; 
+facing_angle_hist_count = zeros(12, 2);
 for s=1:length(flymat_info_struct)
     flymat_info = flymat_info_struct(s);
     is_same_genotype_pairing = flymat_info.is_same_genotype_pairing;
+    if remove_outliers
+        outliers_str = 'remove';
+    else
+        outliers_str = 'keep';
+    end
     % featAll_mat_names will always be of length 1 currently
     if is_same_genotype_pairing
         same_genotype_str = 'same_genotype';
-        featAll_mat_names = strcat('featAll_and_feat_probs_dist_remove_outliers-', same_genotype_str, '-', strjoin(flymat_info.flymat, '_'));
+        featAll_mat_names = strcat('featAll_and_feat_probs_dist_', outliers_str, '_outliers-', same_genotype_str, '-', strjoin(flymat_info.flymat, '_'));
         featAll_mat_names = {featAll_mat_names};
     else
         same_genotype_str = 'diff_genotype';
-        featAll_mat_names = cellfun(@(flymat_name) strcat('featAll_and_feat_probs_dist_remove_outliers-', same_genotype_str, '-', flymat_name), flymat_info.flymat, 'UniformOutput', false);
+        featAll_mat_names = cellfun(@(flymat_name) strcat('featAll_and_feat_probs_dist_', outliers_str, '_outliers-', same_genotype_str, '-', flymat_name), flymat_info.flymat, 'UniformOutput', false);
     end
-    
-    
-%     featAll_mat_names = {'featAll_and_feat_probs_dist_remove_outliers-FLYMAT_CSMH_SM_vsWT_GM_HeisenbergChamber_May2019', ...
-%         'featAll_and_feat_probs_dist_remove_outliers-FLYMAT_CG3385_KO_CS-bc-11_GM_vsWT_GM_HeisenbergChamber_May2019'};
-    % featAll_mat_names = {'featAll_and_feat_probs_dist_remove_outliers-FLYMAT_CG3385_KO_CS-bc-11_GM_vsWT_GM_HeisenbergChamber_May2019'};
-
+   
     load(featAll_mat_names{1}, ...
             'feature_options', 'stat_options', 'period_options', 'is_attacked_fly');
     % Visualize wildtype and mutant feature statistic distributions using heat
     % map based on kernel density estimate from the statistic data points
     % Compare by visual examination
     
-    % plot_periods(plot_periods == 0) = [];
     chosen_is_attacked_fly = false; 
     chosen_is_attacked_fly_idx = find(is_attacked_fly == chosen_is_attacked_fly);
     ks_num_points = 90; 
     setup_idx_tuples = [repelem((1:length(feature_options))', length(stat_options)), ...
         repmat((1:length(stat_options))', length(feature_options), 1)];
-    % For now, we only look at combination of different features
-    % setup_combs = nchoosek(1:size(setup_idx_tuples, 1), 2);
-    % comb_mask = diff(floor((setup_combs-1)./length(stat_options)), 1, 2) ~= 0;
-    % setup_combs = setup_combs(comb_mask, :); 
     if chosen_is_attacked_fly
-        fly_str = 'attacked';
+        fly_str = 'target';
     else
-        fly_str = 'attacking';
+        fly_str = 'tester';
     end
 
     featAll_all_experiments_struct = struct();
@@ -79,24 +80,27 @@ for s=1:length(flymat_info_struct)
         genotype_str = featAll_all_experiments_struct(p).genotype_str; 
 
         for l=1:length(period_options)
-            chosen_period = period_options(l);
+            chosen_period = period_options{l};
+            if all(chosen_period) > 0
+                chosen_period = chosen_period(2);
+            else
+                chosen_period = chosen_period(1);
+            end
             if ~ismember(chosen_period, plot_periods)
                 continue; 
             end
             if chosen_period < 0 
-                setup_combs = [22, 27; 27, 2; 22, 2];
-            %     setup_combs = [2, 27];
-            %     setup_combs = [31, 36];
+                % Features are [facing_angle_mutual_self_init, facing_angle_mutual_other_init; facing_angle_mutual_other_init, dist_to_other_init; facing_angle_mutual_self_init, dist_to_other_init]
+                setup_combs = [37, 44; 44, 2; 37, 2];
             else
-                setup_combs = [23, 28; 28, 3; 23, 3];
-            %     setup_combs = [3, 28];
-            %     setup_combs = [31, 36];
+                % Features are [facing_angle_mutual_self_end, facing_angle_mutual_other_end; facing_angle_mutual_other_end, dist_to_other_end; facing_angle_mutual_self_end, dist_to_other_end]
+                setup_combs = [38, 45; 45, 3; 38, 3];
             end
 
             for i=1:size(setup_combs, 1) % Iterate over different combinations of statistic
                 setup_comb = setup_combs(i, :);
                 % do not include var and delta in the unification process
-                if any(ismember(setup_comb, [5:5:20, 4:5:19]))
+                if any(ismember(setup_comb, [5:7:61, 4:7:60]))
                     continue; 
                 end
 
@@ -135,15 +139,15 @@ for s=1:length(flymat_info_struct)
                         ks_support_global_max; 
                 end
 
-                if any(ismember(setup_comb, 1:5))
+                if any(ismember(setup_comb, 1:7))
                     ks_support_global_min(2) = 1;
-                    ks_support_global_max(2) = 10;
+                    ks_support_global_max(2) = 15;
                 end
-                if all(ismember(setup_comb, 21:30))
+                if any(ismember(setup_comb, 36:49))
                     ks_support_global_min(1) = 0; 
                     ks_support_global_min(2) = 0;
                 end
-                if any(ismember(setup_comb, 15:20)) || any(ismember(setup_comb, 31:35))
+                if any(ismember(setup_comb, 22:28)) || any(ismember(setup_comb, 50:56))
                     ks_support_global_max(1) = 20;
                     ks_support_global_max(2) = 20;
                 end
@@ -179,24 +183,24 @@ for s=1:length(flymat_info_struct)
         quadrant_count_cell = cell(length(period_options), size(setup_combs, 1), 2);
 
         for l=1:length(period_options)
-            chosen_period = period_options(l);
-            if ~ismember(chosen_period, plot_periods)
-                continue;
+            chosen_period = period_options{l};
+            if all(chosen_period) > 0
+                chosen_period = chosen_period(2);
+            else
+                chosen_period = chosen_period(1);
             end
             if chosen_period < 0 
-                setup_combs = [22, 27; 27, 2; 22, 2];
-            %     setup_combs = [2, 27];
-            %     setup_combs = [31, 36];
+                % Features are [facing_angle_mutual_self_init, facing_angle_mutual_other_init; facing_angle_mutual_other_init, dist_to_other_init; facing_angle_mutual_self_init, dist_to_other_init]
+                setup_combs = [37, 44; 44, 2; 37, 2]; 
             else
-                setup_combs = [23, 28; 28, 3; 23, 3];
-            %     setup_combs = [3, 28];
-            %     setup_combs = [31, 36];
+                % Features are [facing_angle_mutual_self_end, facing_angle_mutual_other_end; facing_angle_mutual_other_end, dist_to_other_end; facing_angle_mutual_self_end, dist_to_other_end]
+                setup_combs = [38, 45; 45, 3; 38, 3];
             end
                  
             for i=1:size(setup_combs, 1) % Iterate over different combinations of statistic
                 setup_comb = setup_combs(i, :);
                 % do not include var and delta in the unification process
-                if any(ismember(setup_comb, [5:5:20, 4:5:19]))
+                if any(ismember(setup_comb, [5:7:61, 4:7:60]))
                     continue; 
                 end
 
@@ -205,14 +209,14 @@ for s=1:length(flymat_info_struct)
                 ks_support_global_min = ks_support_global_min_cell{setup_idx_tuples(setup_comb(1), 1), setup_idx_tuples(setup_comb(2), 1)};
                 ks_support_global_max = ks_support_global_max_cell{setup_idx_tuples(setup_comb(1), 1), setup_idx_tuples(setup_comb(2), 1)};
 
-                if any(ismember(setup_comb, 1:5))                
+                if any(ismember(setup_comb, 1:7))                
                     ks_support_global_min(2) = 1;
-                    ks_support_global_max(2) = 10;
+                    ks_support_global_max(2) = 15;
                 end
-                if any(ismember(setup_comb, 21:30))
-                    ks_support_global_min(ismember(setup_comb, 21:30)) = 0; 
+                if any(ismember(setup_comb, 36:49))
+                    ks_support_global_min(ismember(setup_comb, 35:49)) = 0; 
                 end
-                if any(ismember(setup_comb, 15:20)) || any(ismember(setup_comb, 31:35))
+                if any(ismember(setup_comb, 22:28)) || any(ismember(setup_comb, 50:56))
                     ks_support_global_min(1) = 0;
                     ks_support_global_min(2) = 0;
                     ks_support_global_max(1) = 20;
@@ -224,11 +228,11 @@ for s=1:length(flymat_info_struct)
                 if ismember(2, setup_comb) || ismember(3, setup_comb)
                     xaxis_opt = 'angle';
                     yaxis_opt = 'dist'; 
-                    yaxis_scale_opt = 10 - ks_support_global_min(2);
+                    yaxis_scale_opt = ks_support_global_max(2) - ks_support_global_min(2);
                     xaxis_scale_opt = pi;
                     xaxis_draw_offset = ks_support_global_min(1);
                     yaxis_draw_offset = ks_support_global_min(2);
-                elseif ismember(31, setup_comb)
+                elseif ismember(50, setup_comb)
                     xaxis_opt = 'vel';
                     yaxis_opt = 'vel';
                     xaxis_scale_opt = 20;
@@ -244,11 +248,11 @@ for s=1:length(flymat_info_struct)
                     yaxis_draw_offset = ks_support_global_min(2);
                 end
                 role_opt = cell(size(setup_comb));
-                if any(ismember(setup_comb, [22, 23]))
-                    role_opt{ismember(setup_comb, [22, 23])} = 'attacking';
+                if any(ismember(setup_comb, [37, 38]))
+                    role_opt{ismember(setup_comb, [37, 38])} = 'tester';
                 end
-                if any(ismember(setup_comb, [27, 28]))
-                    role_opt{ismember(setup_comb, [27, 28])} = 'attacked';
+                if any(ismember(setup_comb, [44, 45]))
+                    role_opt{ismember(setup_comb, [44, 45])} = 'target';
                 end
 
                 feat_pair_mat_cell = cell(2, 1);
@@ -261,6 +265,9 @@ for s=1:length(flymat_info_struct)
                     for k=1:length(setup_comb)
                         setup_tuple = setup_idx_tuples(setup_comb(k), :);
                         feat_pair_mat(:, k) = featAll_cell{setup_tuple(1), setup_tuple(2), l, chosen_is_attacked_fly_idx, j};    
+                    end
+                    if ismember(s, [3, 4]) && isequal(unique(setup_comb), [38, 45])
+                        facing_angle_hist_count(:, ismember([3, 4], s)) = histcounts(feat_pair_mat(:, ismember(setup_comb, 38)), 12, 'BinLimits', [0, pi], 'Normalization', 'probability');
                     end
                     quadrant_count = zeros(3, 3);
                     quadrant_members_start_frame = cell(3, 3, 2);
@@ -289,7 +296,6 @@ for s=1:length(flymat_info_struct)
 
                     [f, xi] = ksdensity(feat_pair_mat_cell{j}, [ks_support_mesh_x(:), ks_support_mesh_y(:)]);
 
-    %                 ax_objs{j} = subplot(1, 2, j);
                     ax_objs{j}  = gca;
                     surf(reshape(xi(:,1), ks_num_points, ks_num_points), reshape(xi(:,2), ks_num_points, ks_num_points), reshape(f, ks_num_points, ks_num_points), 'EdgeColor', 'none');
                     colormap(teals); 
@@ -301,11 +307,11 @@ for s=1:length(flymat_info_struct)
                         setup_tuple = setup_idx_tuples(setup_comb(k), :);
                         if k == 1
                             if strcmp(xaxis_opt, 'angle')
-                                xlabel(sprintf('Facing angle of %s fly', role_opt{k}));
+                                xlabel(sprintf('Facing angle of %s', role_opt{k}));
                             elseif strcmp(xaxis_opt, 'vel')
-                                xlabel(sprintf('Mean velocity of %s fly', role_opt{k}));
+                                xlabel(sprintf('Mean velocity of %s', role_opt{k}));
                             elseif strcmp(xaxis_opt, 'dist')
-                                xlabel('Distance between two flies');
+                                xlabel('Distance');
                             end
                             if contains(feature_options{setup_tuple(1)}, 'angle')
                                 xticks((0:3).*(pi/3));
@@ -317,11 +323,11 @@ for s=1:length(flymat_info_struct)
                             end
                         else
                             if strcmp(yaxis_opt, 'angle')
-                                ylabel(sprintf('Facing angle of %s fly', role_opt{k}));
+                                ylabel(sprintf('Facing angle of %s', role_opt{k}));
                             elseif strcmp(yaxis_opt, 'vel')
-                                ylabel(sprintf('Mean velocity of %s fly', role_opt{k}));
+                                ylabel(sprintf('Mean velocity of %s', role_opt{k}));
                             elseif strcmp(yaxis_opt, 'dist')
-                                ylabel('Distance between two flies');
+                                ylabel('Distance');
                             end
 
                             if contains(feature_options{setup_tuple(1)}, 'angle')
@@ -355,8 +361,6 @@ for s=1:length(flymat_info_struct)
                         pairing_str = strjoin(genotype_str, '_vs_');
                     end
 
-%                     original_pos = get(ax_objs{j}, 'Position');
-%                     set(ax_objs{j}, 'Position', original_pos);
                     caxis_common = caxis_common_cell{p, setup_idx_tuples(setup_comb(1), 1), setup_idx_tuples(setup_comb(2), 1), (chosen_period<0) + 1};
                     caxis(ax_objs{j}, caxis_common);
                     colorbar;
@@ -368,14 +372,18 @@ for s=1:length(flymat_info_struct)
                         period_sign = 'p';
                     end
                     set(gcf,'renderer','Painters');
-                    saveas(double(fig_obj), sprintf('teal_heat_map-%s-%s-%s_vs_%s-period_%s%d-%s_fly.png', ...
-                        pairing_str, genotype_str{j}, get(get(gca, 'ylabel'), 'String'), get(get(gca, 'xlabel'), 'String'), period_sign, abs(chosen_period), fly_str));
-                    saveas(double(fig_obj), sprintf('teal_heat_map-%s-%s-%s_vs_%s-period_%s%d-%s_fly.eps', ...
-                        pairing_str, genotype_str{j}, get(get(gca, 'ylabel'), 'String'), get(get(gca, 'xlabel'), 'String'), period_sign, abs(chosen_period), fly_str), 'epsc');
+                    saveas(gcf, sprintf('teal_heat_map-%s-%s-%s_vs_%s-period_%s%d-%s.png', ...
+                        pairing_str, genotype_str{j}, strrep(get(get(gca, 'ylabel'), 'String'), ' ', '_'), ...
+                        strrep(get(get(gca, 'xlabel'), 'String'), ' ', '_'), period_sign, abs(chosen_period), fly_str));
+                    saveas(gcf, sprintf('teal_heat_map-%s-%s-%s_vs_%s-period_%s%d-%s.eps', ...
+                        pairing_str, genotype_str{j}, strrep(get(get(gca, 'ylabel'), 'String'), ' ', '_'), ...
+                        strrep(get(get(gca, 'xlabel'), 'String'), ' ', '_'), period_sign, abs(chosen_period), fly_str), 'epsc');
 
+                    quadrant_count_tester = quadrant_count_cell{l, i, 2};
                     quadrant_members_start_frame_tester = quadrant_members_start_frame(:, :, 1);
-                    save(sprintf('quadrant_members_start_frame-%s-%s-%s_vs_%s-period_%d-%s_fly.mat', ...
-                            pairing_str, genotype_str{j}, get(get(gca, 'ylabel'), 'String'), get(get(gca, 'xlabel'), 'String'), chosen_period, fly_str), 'quadrant_members_start_frame_tester');
+                    save(sprintf('quadrant_members_start_frame-%s-%s-%s_vs_%s-period_%d-%s.mat', ...
+                            pairing_str, genotype_str{j}, get(get(gca, 'ylabel'), 'String'), get(get(gca, 'xlabel'), 'String'), chosen_period, fly_str), ...
+                            'quadrant_count_tester', 'quadrant_members_start_frame_tester');
                 end
             end         
         end
@@ -394,19 +402,15 @@ for s=1:length(pairs_to_test)
         for i=1:size(kstest2d_p_val_all, 3)
             feat_pair_mat_1 = feat_pair_mat_cell_all{pair{1}(1), l, i, pair{1}(2)}; 
             feat_pair_mat_2 = feat_pair_mat_cell_all{pair{2}(1), l, i, pair{2}(2)}; 
-            smpl_sz = min(size(feat_pair_mat_1, 1), size(feat_pair_mat_2, 1));
-%             [kstest2d_p_val_all(s, l, i), ~] = ...  
-%                 kstest2d(feat_pair_mat_1(randi(size(feat_pair_mat_1, 1), smpl_sz, 1), :), ...
-%                 feat_pair_mat_2(randi(size(feat_pair_mat_2, 1), smpl_sz, 1), :));
-            
+
             % Use large (> 300) but unequal number of points in each sample 
             [kstest2d_p_val_all(s, l, i), ~] = ...  
-                kstest2d(feat_pair_mat_1, feat_pair_mat_2); % 2D Kolmogorov-Smirnov
+                kstest2d(feat_pair_mat_1, feat_pair_mat_2); % two-feature two-sample Kolmogorov-Smirnov
             for j=1:2
-                ranksum_p_val_all(s, l, i, j) = ranksum(feat_pair_mat_1(:, j), feat_pair_mat_2(:, j));
+                ranksum_p_val_all(s, l, i, j) = ranksum(feat_pair_mat_1(:, j), feat_pair_mat_2(:, j)); % Single-feature rank-sum
             end
             for j=1:2
-                [~, kstest1d_p_val_all(s, l, i, j)] = kstest2(feat_pair_mat_1(:, j), feat_pair_mat_2(:, j));
+                [~, kstest1d_p_val_all(s, l, i, j)] = kstest2(feat_pair_mat_1(:, j), feat_pair_mat_2(:, j)); % Single-feature two-sample KS
             end
             pairing_type_str_cell = cell(size(pair));
             for k=1:length(pairing_type_str_cell)
@@ -420,6 +424,7 @@ for s=1:length(pairs_to_test)
                         flymat_info_struct(pair{k}(1)).genotype_str{2});
                 end
             end
+            
             fprintf('===== =====\n');
             fprintf('%s \n Genotype %s in %s and %s in %s\n Frame(s) w.r.t. lunge %d: p-value %.3e \n', ...
                 feature_pair_str{i}, ...

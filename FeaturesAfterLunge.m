@@ -127,9 +127,6 @@ function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name
             end
             featAll(featAll_sz).(feat_name{j}) = feat_vals;
         end
-
-%         feat_temp_cell = cellfun(@(name) featAll(1).(name), feat_name, 'UniformOutput', false);
-%         featAll(featAll_sz).table = table(feat_temp_cell{:}, 'VariableNames', feat_name);
     end
     
     for i=1:length(featAll)
@@ -205,10 +202,8 @@ function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name
                 continue;
             end
             curr_feature_all_means = vertcat(featAll(:).(strcat(feat_name{j}, '_mean'))); 
-            quartiles = quantile(curr_feature_all_means, [0.25, 0.75]);
-            iqr_of_means = quartiles(2) - quartiles(1); 
-            outlier_mask = bitor((quartiles(1) - curr_feature_all_means) > 1.5*iqr_of_means, ...
-                (curr_feature_all_means - quartiles(2)) > 1.5*iqr_of_means); 
+            quantiles = quantile(curr_feature_all_means, [0.005, 0.995]);
+            outlier_mask = bitor(curr_feature_all_means < quantiles(1), curr_feature_all_means > quantiles(2));
             num_of_outliers = num_of_outliers + sum(outlier_mask);
             outlier_mask_by_fly_cell = mat2cell(outlier_mask, arrayfun(@(s) length(s.(strcat(feat_name{j}, '_mean'))), featAll));
             for i=1:length(outlier_mask_by_fly_cell)
@@ -231,50 +226,6 @@ function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name
     else
         fly_str = 'attacking';
     end
-%     save(fullfile(sprintf('FeatAll_%s_period_%d_%s_fly_genotype_%s-remove_outliers.mat', flymat_name, num_frames, fly_str, strjoin(cellstr(num2str(selected_genotype')), '_'))), 'featAll');
-    
-%     figure();
-%     hold on;
-%     for i=1:length(featAll)
-%         if  length(feat_name) == 1
-%             for j=1:size(featAll(i).(feat_name{1}), 1)
-%                 plot(featAll(i).(feat_name{1})(j, :) - featAll(i).(strcat(feat_name{1}, '_init'))(j));
-%             end
-%         elseif length(feat_name) == 2 
-%             for j=1:size(featAll(i).(feat_name{1}), 1)
-%                 plot(featAll(i).(feat_name{1})(j,:) - featAll(i).(strcat(feat_name{1}, '_init'))(j), ...
-%                     featAll(i).(feat_name{2})(j, :) - featAll(i).(strcat(feat_name{2}, '_init'))(j));
-%             end
-%         elseif length(feat_name) == 3
-%             for j=1:size(featAll(i).(feat_name{1}), 1)
-%                 plot3(featAll(i).(feat_name{1})(j,:) - featAll(i).(strcat(feat_name{1}, '_init'))(j), ...
-%                     featAll(i).(feat_name{2})(j,:) - featAll(i).(strcat(feat_name{2}, '_init'))(j), ...
-%                     featAll(i).(feat_name{3})(j,:) - featAll(i).(strcat(feat_name{3}, '_init'))(j));
-%             end
-%         else
-%             fprintf('Can only visualize 1 to 3 features\n');
-%         end
-%     end
-%     hold off;
-%     if  length(feat_name) == 1
-%         xlabel('Time (frame)');
-%         ylabel(strrep(feat_name{1}, '_', '-'));
-%     elseif  length(feat_name) == 2 
-%         xlabel(strrep(feat_name{1}, '_', '-'));
-%         ylabel(strrep(feat_name{2}, '_', '-'));
-%     else
-%         xlabel(strrep(feat_name{1}, '_', '-'));
-%         ylabel(strrep(feat_name{2}, '_', '-'));
-%         zlabel(strrep(feat_name{3}, '_', '-'));
-%     end
-%     
-%     if length(feat_name) == 1
-% %         saveas(double(gcf), fullfile(common_path,strcat(flymat_name, 'FeatAftLunge_', feat_name{1}, '.eps')));
-%         saveas(double(gcf), fullfile(strcat(flymat_name, 'FeatAftLunge_', feat_name{1}, '.png')));
-%     else
-% %         saveas(double(gcf), fullfile(common_path,strcat(flymat_name, 'FeatAftLunge_', strjoin(feat_name, '_'), '.eps')));
-%         saveas(double(gcf), fullfile(strcat(flymat_name, 'FeatAftLunge_', strjoin(feat_name, '_'), '.png')));
-%     end
     
     feat_probs = cell(length(feat_name), length(hist_stat));
     feat_prob_edges = cell(length(feat_name), length(hist_stat));
@@ -283,8 +234,6 @@ function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name
             continue; 
         end
         for j=1:length(hist_stat)
-            % figure();
-            % hist_stat can be one or more in 'mean', 'var', 'init', 'end', 'delta'
             feat_stat = {featAll(:).(strcat(feat_name{i}, '_', hist_stat{j}))};
             feat_stat_zscore = zscore(vertcat(feat_stat{:}));
             if regexp(feat_name{i}, 'angle')
@@ -298,16 +247,7 @@ function [feat_probs, feat_prob_edges, featAll] = FeaturesAfterLunge(flymat_name
             if regexp(hist_stat{j}, 'var')
                 bin_width = bin_width^2; 
             end
-            % histogram(vertcat(feat_stat{:}), 'BinWidth', bin_width)
             [feat_probs{i, j}, feat_prob_edges{i, j}] = histcounts(vertcat(feat_stat_zscore), 'BinWidth', bin_width, 'Normalization', 'probability');
-
-%             if length(feat_name) == 1
-%                 saveas(double(gcf), fullfile(common_path,strcat(flymat_name, 'FeatAftLunge_hist_', strcat(feat_name{1}, '_', hist_stat{j}), '.eps')));
-%                 saveas(double(gcf), fullfile(strcat(flymat_name, 'FeatAftLunge_hist_', strcat(feat_name{1}, '_', hist_stat{j}), '.png')));
-%             else
-%                 saveas(double(gcf), fullfile(common_path,strcat(flymat_name, 'FeatAftLunge_hist_', strcat(feat_name{i}, '_', hist_stat{j}), '.eps')));
-%                 saveas(double(gcf), fullfile(strcat(flymat_name, 'FeatAftLunge_hist_', strcat(feat_name{i}, '_', hist_stat{j}), '.png')));
-%             end
         end
     end
 end
