@@ -1,8 +1,10 @@
-﻿# periLunge
-This repository contains code that analyzes what a fly is doing before and after a lunge. Current method is visualizing feature distributions and their temporal changes at fixed time points near known lunge timestamps.
+﻿# Ishii_etal_2020_behavioral_feature_analysis
+This repository contains code that analyzes what a fly is doing before and after a lunge. We analyzed transitions between behavior bouts and compared behavioral transition patterns (also called ethograms) across different types of flies. The main MATLAB program for behavior transition analysis is `visualize_apply_behav_label.m`. 
 
-The code in this repository was used to conduct analysis and draw figures in the section "nvy controls social action selection" of the paper
+The repository also includes some kinematic analysis, e.g. visualizing feature distributions and their temporal changes at fixed time points near known lunge timestamps.
 
-Kenichi Ishii et.al. (2020). A Drosophila proto-oncogene homolog controls aggression via aminergic neurons. In preparation. 
+The code in this repository was used to conduct analysis and draw figures in the section "nvy controls a behavioral transition leading to lunges" of the paper
 
-Further details of the code are described in Materials and Methods > Behavioral Feature Analysis section of the paper. 
+Kenichi Ishii et.al. (2022). A neurogenetic mechanism of experience-dependent suppression of aggression. 
+
+Further details of the code are described in Materials and Methods > Behavioral transition analysis section of the paper. 
